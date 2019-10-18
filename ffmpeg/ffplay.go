@@ -1,5 +1,14 @@
 package ffmpeg
 
+/*
+#include<stdio.h>
+#include<SDL2/SDL_audio.h>
+void audioCallback(void *userdata, Uint8 * stream,int len){
+	printf("audioCallback\n");
+	audioFunc(userdata,stream,len);
+}
+*/
+import "C"
 import (
 	"fmt"
 	"github.com/mgr9525/go-sdl2/sdl"
@@ -15,22 +24,26 @@ import (
 )
 
 var videoindex = -1
+var audioindex = -1
 var PFormatContext *avformat.Context
 var PCodecContext *avcodec.Context
+var PCodecCtxAud *avcodec.Context
 
 var YUVFrameMutex sync.Mutex
 var PFrameYUV *avutil.Frame
 
+var PAudioPacket *avcodec.Packet
+var AudioPckMutex sync.Mutex
+
 func InitVideo(flpath string) {
 	println("open video:" + flpath)
 
-	avformat.AvRegisterAll()
-	avcodec.AvcodecRegisterAll()
-	PFormatContext = avformat.AvformatAllocContext()
-	if avformat.AvformatOpenInput(&PFormatContext, flpath, nil, nil) != 0 {
+	pFormatContext := avformat.AvformatAllocContext()
+	if avformat.AvformatOpenInput(&pFormatContext, flpath, nil, nil) != 0 {
 		fmt.Printf("Unable to open file %s\n", flpath)
 		os.Exit(1)
 	}
+	PFormatContext = pFormatContext
 
 	// Retrieve stream information
 	if PFormatContext.AvformatFindStreamInfo(nil) < 0 {
@@ -42,30 +55,48 @@ func InitVideo(flpath string) {
 	PFormatContext.AvDumpFormat(0, flpath, 0)
 
 	// Find the first video stream
-nbfor:
 	for i := 0; i < int(PFormatContext.NbStreams()); i++ {
 		switch PFormatContext.Streams()[i].CodecParameters().AvCodecGetType() {
 		case avformat.AVMEDIA_TYPE_VIDEO:
 			videoindex = i
-			break nbfor
+			break
+		case avformat.AVMEDIA_TYPE_AUDIO:
+			audioindex = i
+			break
 		}
 	}
+
+	println("videoindex:", videoindex)
 }
 
 func StartVideo() {
 	if videoindex < 0 {
 		return
 	}
+	rate := PFormatContext.Streams()[videoindex].AvgFrameRate()
+	secs := float64(rate.Den()) / float64(rate.Num())
 	pCodecCtxOrig := PFormatContext.Streams()[videoindex].Codec()
+	pCodecCtxAud := PFormatContext.Streams()[audioindex].Codec()
 	// Find the decoder for the video stream
 	pCodec := avcodec.AvcodecFindDecoder(avcodec.CodecId(pCodecCtxOrig.GetCodecId()))
 	if pCodec == nil {
 		fmt.Println("Unsupported codec!")
 		os.Exit(1)
 	}
+	pCodecAud := avcodec.AvcodecFindDecoder(avcodec.CodecId(pCodecCtxAud.GetCodecId()))
+	if pCodecAud == nil {
+		fmt.Println("Unsupported codec audio!")
+		os.Exit(1)
+	}
 	// Copy context
 	pCodecCtx := pCodec.AvcodecAllocContext3()
 	if pCodecCtx.AvcodecCopyContext((*avcodec.Context)(unsafe.Pointer(pCodecCtxOrig))) != 0 {
+		fmt.Println("Couldn't copy codec context")
+		os.Exit(1)
+	}
+	// Copy context
+	pCodecCtxAuds := pCodecAud.AvcodecAllocContext3()
+	if pCodecCtxAuds.AvcodecCopyContext((*avcodec.Context)(unsafe.Pointer(pCodecCtxAud))) != 0 {
 		fmt.Println("Couldn't copy codec context")
 		os.Exit(1)
 	}
@@ -76,6 +107,13 @@ func StartVideo() {
 		os.Exit(1)
 	}
 	PCodecContext = pCodecCtx
+
+	// Open codec
+	if pCodecCtxAuds.AvcodecOpen2(pCodecAud, nil) < 0 {
+		fmt.Println("Could not open codec audio")
+		os.Exit(1)
+	}
+	PCodecCtxAud = pCodecCtxAuds
 
 	// Allocate video frame
 	pFrame := avutil.AvFrameAlloc()
@@ -104,17 +142,38 @@ func StartVideo() {
 		(swscale.PixelFormat)(pCodecCtx.PixFmt()),
 		pCodecCtx.Width(),
 		pCodecCtx.Height(),
-		avcodec.AV_PIX_FMT_RGB24,
+		avcodec.AV_PIX_FMT_YUV,
 		avcodec.SWS_BILINEAR,
 		nil,
 		nil,
 		nil,
 	)
 
+	wspec := new(sdl.AudioSpec)
+	wspec.Freq = int32(pCodecCtxAuds.SampleRate())
+	wspec.Format = sdl.AUDIO_S16SYS
+	wspec.Channels = uint8(pCodecCtxAuds.Channels())
+	wspec.Silence = 0
+	wspec.Samples = 1024
+	wspec.UserData = unsafe.Pointer(pCodecCtxAuds)
+	wspec.Callback = sdl.AudioCallback(unsafe.Pointer(C.audioCallback))
+
+	err := sdl.OpenAudio(wspec, nil)
+	if err != nil {
+		fmt.Println("SDL_OpenAudio err:" + err.Error())
+		os.Exit(1)
+	}
+
+	sdl.PauseAudio(false)
+
 	// Read frames and save first five frames to disk
 	frameNumber := 1
 	packet := avcodec.AvPacketAlloc()
-	for PFormatContext.AvReadFrame(packet) >= 0 {
+
+	for {
+		if PFormatContext.AvReadFrame(packet) < 0 {
+			break
+		}
 		// Is this a packet from the video stream?
 		if packet.StreamIndex() == videoindex {
 			// Decode video frame
@@ -128,7 +187,7 @@ func StartVideo() {
 					break
 				} else if response < 0 {
 					fmt.Printf("Error while receiving a frame from the decoder: %s\n", avutil.ErrorFromCode(response))
-					return
+					break
 				}
 
 				YUVFrameMutex.Lock()
@@ -145,8 +204,27 @@ func StartVideo() {
 				//(pFrameRGB, pCodecCtx.Width(), pCodecCtx.Height(), frameNumber)
 
 				frameNumber++
-				time.Sleep(time.Microsecond * 40)
 			}
+
+			time.Sleep(time.Millisecond * time.Duration(1000*secs))
+		} else if packet.StreamIndex() == audioindex {
+			response := pCodecCtxAuds.AvcodecSendPacket(packet)
+			if response < 0 {
+				fmt.Printf("Error while sending a packet to the decoder: %s\n", avutil.ErrorFromCode(response))
+			}
+			for response >= 0 {
+				response = pCodecCtxAuds.AvcodecReceiveFrame((*avcodec.Frame)(unsafe.Pointer(pFrame)))
+				if response == avutil.AvErrorEAGAIN || response == avutil.AvErrorEOF {
+					break
+				} else if response < 0 {
+					fmt.Printf("Error while receiving a frame from the decoder: %s\n", avutil.ErrorFromCode(response))
+					break
+				}
+
+			}
+			AudioPckMutex.Lock()
+			PAudioPacket = packet
+			AudioPckMutex.Unlock()
 		}
 
 		// Free the packet that was allocated by av_read_frame
@@ -166,4 +244,6 @@ func StartVideo() {
 
 	// Close the video file
 	PFormatContext.AvformatCloseInput()
+
+	println("read video end!!!!!!!!!!!!!!!!!!!!!!!!!!!11")
 }

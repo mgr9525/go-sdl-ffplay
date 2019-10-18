@@ -4,6 +4,8 @@ github.com/gosuri/uiprogress v0.0.0-20170224063937-d0567a9d84a1/go.mod h1:C1RTYn
 github.com/mgr9525/go-sdl2 v0.3.3 h1:0A5XIK4Ih4DnmvZmupMPRpBt+dK47tbtSTAImdFhun4=
 github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018013053-5472e8a1f3a1 h1:XNNy8SQxN5zaBzzBRo3mUwKBOIapqavn52CpcVpXAks=
 github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018013053-5472e8a1f3a1/go.mod h1:h2uiZtP+Nfk5RQmYd9X1N1oj3nio3v1s1QKbXuvDosQ=
+github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018053807-11e1f1be119b h1:WGkwHZEZRWlmzMkdRZzeyluv9oAQF9kS4efazYORAOg=
+github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018053807-11e1f1be119b/go.mod h1:h2uiZtP+Nfk5RQmYd9X1N1oj3nio3v1s1QKbXuvDosQ=
 github.com/mgr9525/goav v0.1.1-0.20191017103941-d0a77caaf022 h1:NncMlj+5AJS5Lw15qy78JPCJ1mUe/Dan2I2BOpRngdM=
 github.com/mgr9525/goav v0.1.1-0.20191017103941-d0a77caaf022/go.mod h1:+jCETnIrJwwL0yfLe1UJ3Tj2deT4Pk3tBTb+gLaiNtY=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
