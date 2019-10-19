@@ -1,4 +1,4 @@
-module go-sdl-ffplay
+module github.com/mgr9525/go-sdl-ffplay
 
 require (
 	github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018053807-11e1f1be119b
