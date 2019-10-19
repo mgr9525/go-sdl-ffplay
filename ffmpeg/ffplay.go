@@ -15,6 +15,7 @@ import (
 	"github.com/mgr9525/goav/avcodec"
 	"github.com/mgr9525/goav/avformat"
 	"github.com/mgr9525/goav/avutil"
+	"github.com/mgr9525/goav/swresample"
 	"github.com/mgr9525/goav/swscale"
 	"go-sdl-ffplay/app"
 	"os"
@@ -22,6 +23,8 @@ import (
 	"time"
 	"unsafe"
 )
+
+const MAX_AUDIO_FRAME_SIZE = 19200
 
 var videoindex = -1
 var audioindex = -1
@@ -32,7 +35,7 @@ var PCodecCtxAud *avcodec.Context
 var YUVFrameMutex sync.Mutex
 var PFrameYUV *avutil.Frame
 
-var PAudioPacket *avcodec.Packet
+var AudioBuffer *uint8
 var AudioPckMutex sync.Mutex
 
 func InitVideo(flpath string) {
@@ -149,14 +152,26 @@ func StartVideo() {
 		nil,
 	)
 
+	audio_out_buff := avutil.AvMalloc(MAX_AUDIO_FRAME_SIZE * 2)
+
 	wspec := new(sdl.AudioSpec)
 	wspec.Freq = int32(pCodecCtxAuds.SampleRate())
 	wspec.Format = sdl.AUDIO_S16SYS
 	wspec.Channels = uint8(pCodecCtxAuds.Channels())
 	wspec.Silence = 0
-	wspec.Samples = 1024
+	wspec.Samples = 19200
 	wspec.UserData = unsafe.Pointer(pCodecCtxAuds)
 	wspec.Callback = sdl.AudioCallback(unsafe.Pointer(C.audioCallback))
+
+	swrCtx := swresample.SwrAlloc()
+	swrCtx.SwrAllocSetOpts(avutil.AV_CH_LAYOUT_STEREO,
+		swresample.AV_SAMPLE_FMT_S16,
+		pCodecCtxAuds.SampleRate(),
+		pCodecCtxAuds.ChannelLayout(),
+		(swresample.AvSampleFormat)(pCodecCtxAuds.SampleFmt()),
+		pCodecCtxAuds.SampleRate(),
+		0, 0)
+	swrCtx.SwrInit()
 
 	err := sdl.OpenAudio(wspec, nil)
 	if err != nil {
@@ -221,10 +236,14 @@ func StartVideo() {
 					break
 				}
 
+				data := avutil.Data(pFrame)
+				nb := avutil.NbSamples(pFrame)
+				p := (*uint8)(audio_out_buff)
+				swrCtx.SwrConvert(&p, MAX_AUDIO_FRAME_SIZE, (**uint8)(unsafe.Pointer(&data[0])), int(nb))
+				AudioPckMutex.Lock()
+				AudioBuffer = p
+				AudioPckMutex.Unlock()
 			}
-			AudioPckMutex.Lock()
-			PAudioPacket = packet
-			AudioPckMutex.Unlock()
 		}
 
 		// Free the packet that was allocated by av_read_frame

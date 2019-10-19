@@ -8,6 +8,8 @@ github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018053807-11e1f1be119b h1:WGkwHZEZ
 github.com/mgr9525/go-sdl2 v0.4.0-rc.0.0.20191018053807-11e1f1be119b/go.mod h1:h2uiZtP+Nfk5RQmYd9X1N1oj3nio3v1s1QKbXuvDosQ=
 github.com/mgr9525/goav v0.1.1-0.20191017103941-d0a77caaf022 h1:NncMlj+5AJS5Lw15qy78JPCJ1mUe/Dan2I2BOpRngdM=
 github.com/mgr9525/goav v0.1.1-0.20191017103941-d0a77caaf022/go.mod h1:+jCETnIrJwwL0yfLe1UJ3Tj2deT4Pk3tBTb+gLaiNtY=
+github.com/mgr9525/goav v0.1.1-0.20191019074255-9c09180c013a h1:O8hmU4BDOM9cleO3Wf6jm8P+rC+ISyAHJXbTnYQMARw=
+github.com/mgr9525/goav v0.1.1-0.20191019074255-9c09180c013a/go.mod h1:+jCETnIrJwwL0yfLe1UJ3Tj2deT4Pk3tBTb+gLaiNtY=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
